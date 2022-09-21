@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	   xmlns:batch="http://www.springframework.org/schema/batch"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans https://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/batch https://www.springframework.org/schema/batch/spring-batch.xsd http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc.xsd">
+
+	<job id="job1" xmlns="http://www.springframework.org/schema/batch">
+		<step id="step1">
+			<tasklet transaction-manager="transactionManager">
+				<chunk reader="itemReader1" writer="itemWriter" commit-interval="2" skip-limit="1">
+					<skippable-exception-classes>
+						<include class="org.springframework.ldap.ldif.InvalidAttributeFormatException"/>
+					</skippable-exception-classes>
+				</chunk>
+			</tasklet>
+		</step>
+	</job>
+
+	<job id="job2" xmlns="http://www.springframework.org/schema/batch">
+		<step id="step2">
+			<tasklet transaction-manager="transactionManager">
+				<chunk reader="itemReader2" writer="itemWriter" commit-interval="2" />
+			</tasklet>
+		</step>
+	</job>
+
+	<bean id="itemReader1" class="org.springframework.batch.item.ldif.MappingLdifReader">
+		<property name="resource" value="file:src/test/resources/test.ldif" />
+		<property name="recordsToSkip" value="1" />
+		<property name="recordMapper" ref="recordMapper" />
+	</bean>
+
+	<bean id="itemReader2" class="org.springframework.batch.item.ldif.MappingLdifReader">
+		<property name="resource" value="file:src/test/resources/missing.ldif" />
+		<property name="recordsToSkip" value="1" />
+		<property name="recordMapper" ref="recordMapper" />
+	</bean>
+
+	<bean id="recordMapper" class="org.springframework.batch.core.test.ldif.MyMapper" />
+
+	<bean id="itemWriter" class="org.springframework.batch.item.file.FlatFileItemWriter">
+		<property name="resource" value="file:target/test-outputs/output.ldif" />
+		<property name="lineAggregator">
+			<bean class="org.springframework.batch.item.file.transform.PassThroughLineAggregator" />
+		</property>
+	</bean>
+
+	<bean id="jobLauncher" class="org.springframework.batch.core.launch.support.TaskExecutorJobLauncher">
+		<property name="jobRepository" ref="jobRepository" />
+		<property name="taskExecutor" ref="taskExecutor" />
+	</bean>
+
+	<jdbc:embedded-database id="dataSource" generate-name="true"/>
+
+	<jdbc:initialize-database>
+		<jdbc:script location="classpath:/org/springframework/batch/core/schema-drop-hsqldb.sql"/>
+		<jdbc:script location="classpath:/org/springframework/batch/core/schema-hsqldb.sql"/>
+	</jdbc:initialize-database>
+
+	<bean id="transactionManager" class="org.springframework.jdbc.support.JdbcTransactionManager">
+		<property name="dataSource" ref="dataSource"/>
+	</bean>
+
+	<batch:job-repository id="jobRepository" table-prefix="BATCH_"/>
+
+	<bean id="taskExecutor" class="org.springframework.core.task.SyncTaskExecutor" />
+
+</beans>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:batch="http://www.springframework.org/schema/batch"
+       xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans https://www.springframework.org/schema/beans/spring-beans.xsd
+                http://www.springframework.org/schema/batch https://www.springframework.org/schema/batch/spring-batch.xsd http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc.xsd">
+    
+    <job id="pattern.replay" xmlns="http://www.springframework.org/schema/batch">
+        <step id="pattern.replay.1" next="pattern.replay.2">
+            <tasklet ref="tasklet1" allow-start-if-complete="true"/>
+        </step>
+        <step id="pattern.replay.2" next="pattern.replay.3">
+            <tasklet ref="tasklet2" allow-start-if-complete="true"/>
+        </step>
+        <step id="pattern.replay.3">
+            <tasklet ref="tasklet3" allow-start-if-complete="true"/>
+            <stop on="*" restart="pattern.replay.1" />
+            <fail on="FAILED" />
+        </step>
+    </job>
+
+    <bean id="tasklet1" class="org.springframework.batch.core.step.RestartLoopTests$DefaultTasklet"/>
+    <bean id="tasklet2" class="org.springframework.batch.core.step.RestartLoopTests$DefaultTasklet"/>
+    <bean id="tasklet3" class="org.springframework.batch.core.step.RestartLoopTests$DefaultTasklet"/>
+
+    <jdbc:embedded-database id="dataSource" generate-name="true"/>
+
+    <jdbc:initialize-database>
+        <jdbc:script location="classpath:/org/springframework/batch/core/schema-drop-hsqldb.sql"/>
+        <jdbc:script location="classpath:/org/springframework/batch/core/schema-hsqldb.sql"/>
+    </jdbc:initialize-database>
+
+    <bean id="transactionManager" class="org.springframework.jdbc.support.JdbcTransactionManager">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+
+    <batch:job-repository id="jobRepository" table-prefix="BATCH_"/>
+
+    <bean id="jobLauncher" class="org.springframework.batch.core.launch.support.TaskExecutorJobLauncher">
+        <property name="jobRepository" ref="jobRepository"/>
+    </bean>
+</beans>

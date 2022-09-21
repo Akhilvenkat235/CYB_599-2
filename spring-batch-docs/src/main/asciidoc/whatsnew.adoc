@@ -1,0 +1,198 @@
+:batch-asciidoc: ./
+:toc: left
+:toclevels: 4
+
+This section shows the major highlights of Spring Batch 5 and is not an exhaustive list of changes.
+For more details,
+please refer to the link:$$https://github.com/spring-projects/spring-batch/wiki/Spring-Batch-5.0-Migration-Guide$$[migration guide].
+
+[[whatsNew]]
+== What's New in Spring Batch 5.0
+
+Spring Batch 5.0 has the following major themes:
+
+* Java 17 Requirement
+* Dependencies Re-baseline
+* Batch infrastructure configuration updates
+* Batch testing configuration updates
+* New features
+* Pruning
+
+=== Java 17 Requirement
+
+Spring Batch follows Spring Framework's baselines for both Java version and third party dependencies.
+With Spring Batch 5, the Spring Framework version is being upgraded to Spring Framework 6, which requires Java 17.
+As a result, the Java version requirement for Spring Batch is also increasing to Java 17.
+
+[[dependencies-re-baseline]]
+=== Dependencies Re-baseline
+
+To continue the integration with supported versions of the third party libraries that Spring Batch uses,
+Spring Batch 5 is updating the dependencies across the board to the following versions:
+
+* Spring Framework 6
+* Spring Integration 6
+* Spring Data 3
+* Spring AMQP 3
+* Spring for Apache Kafka 3
+* Micrometer 1.10
+
+This release also marks the migration to:
+
+* Jakarta EE 9
+* Hibernate 6
+
+[[batch-infrastructure-configuration-updates]]
+=== Batch Infrastructure Configuration Updates
+
+Spring Batch 5 includes the following infrastructure configuration updates:
+
+* <<datasource-requirement-updates>>
+* <<transaction-manager-bean-exposure>>
+* <<default-transaction-manager-type>>
+
+[[datasource-requirement-updates]]
+==== DataSource Requirement Updates
+
+Historically, Spring Batch provided a map-based job repository and job explorer implementations to work with
+an in-memory job repository. These implementations were deprecated in version 4 and completely removed in version 5.
+The recommended replacement is to use the JDBC-based implementations with an embedded database, such as H2, HSQL, and others.
+
+In this release, the `@EnableBatchProcessing` annotation configures a JDBC-based `JobRepository`, which requires a
+`DataSource` bean in the application context. The `DataSource` bean could refer to an embedded database to work with
+an in-memory job repository.
+
+[[transaction-manager-bean-exposure]]
+==== Transaction Manager Bean Exposure
+
+Until version 4.3, the `@EnableBatchProcessing` annotation exposed a transaction manager bean in the application
+context. While this was convenient in many cases, the unconditional exposure of a transaction manager could
+interfere with a user-defined transaction manager. In this release, `@EnableBatchProcessing` no longer exposes a
+transaction manager bean in the application context.
+
+[[default-transaction-manager-type]]
+==== Default Transaction Manager Type
+
+When no transaction manager is specified, `@EnableBatchProcessing` used (up to version 4.3) to register a default
+transaction manager of type `org.springframework.jdbc.datasource.DataSourceTransactionManager` in the proxy around
+`JobRepository` when a `DataSource` bean is defined in the application context. In this release, the type of the
+default transaction manager has changed to `org.springframework.jdbc.support.JdbcTransactionManager`.
+
+[[batch-testing-configuration-updates]]
+=== Batch Testing Configuration Updates
+
+Spring Batch 5 includes the following testing configuration updates:
+
+* <<removal-of-autowiring-from-test-utilities>>
+* <<migration-to-junit-jupiter>>
+
+[[removal-of-autowiring-from-test-utilities]]
+==== Removal of autowiring from test utilities
+
+Up to version 4.3, the `JobLauncherTestUtils` and `JobRepositoryTestUtils` used
+to autowire the job under test as well as the test datasource to facilitate the
+testing infrastructure setup. While this was convenient for most use cases, it
+turned out to cause several issues for test contexts where multiple jobs or
+multiple datasources are defined.
+
+In this release, we introduced a few changes to remove the autowiring of such
+dependencies in order to avoid any issues while importing those utilities either
+manually or through the `@SpringBatchTest` annotation.
+
+[[migration-to-junit-jupiter]]
+==== Migration to JUnit Jupiter
+
+In this relese, the entire test suite of Spring Batch has been migrated to JUnit 5.
+While this does not impact end users directly, it helps the Batch team as well as
+community contributors to use the next generation of JUnit to write better tests.
+
+=== New features
+
+==== Improved Java records support
+
+The support for Java records as items in a chunk-oriented step has initially been introduced in v4.3,
+but that support was limited due to the fact that v4 has Java 8 as a baseline. The initial support was
+based on reflection tricks to create Java records and populate them with data, without having access to the
+`java.lang.Record` API that was finalised in Java 16.
+
+Now that v5 has Java 17 as a baseline, we have improved records support in Spring Batch by leveraging the
+`Record` API in different parts of the framework. For example, the `FlatFileItemReaderBuilder` is now able
+to detect if the item type is a record or a regular class and configure the corresponding `FieldSetMapper`
+implementation accordingly (ie `RecordFieldSetMapper` for records and `BeanWrapperFieldSetMapper` for regular
+classes). The goal here is to make the configuration of the required `FieldSetMapper` type _transparent_ to the user.
+
+==== Batch tracing with Micrometer
+
+With the upgrade to Micrometer 1.10, you can now get batch tracing in addition to batch metrics.
+Spring Batch will create a span for each job and a span for each step within a job. This tracing
+meta-data can be collected and viewed on a dahsboard like link:$$https://zipkin.io$$[Zipkin] for example.
+
+==== Java 8 features updates
+
+We took the opportunity of this major release to improve the code base with features from Java 8+, for example:
+
+* Use default methods in interfaces and deprecate "support" classes (see link:$$https://github.com/spring-projects/spring-batch/issues/3924$$[issue 3924])
+* Add `@FunctionalInterface` where appropriate in public APIs (see link:$$https://github.com/spring-projects/spring-batch/issues/4107$$[issue 4107])
+
+==== Support for SAP HANA a job repository in Spring Batch
+
+This release introduces the support of SAP HANA as an additional supported database for the job repository.
+
+==== New Maven Bill Of Materials for Spring Batch modules
+
+This feature has been requested several times and is finally shipped in v5. It is now possible to use the newly
+added Maven BOM to import Spring Batch modules with a consistent version number.
+
+==== UTF-8 by default
+
+Several issues related to characters encoding have been reported over the years in different
+areas of the framework, like inconsitent default encoding between file-based item readers
+and writers, serialization/deserialization issues when dealing with multi-byte characters
+in the execution context, etc.
+
+In the same spirit as link:$$https://openjdk.java.net/jeps/400$$[JEP 400] and following the
+link:$$http://utf8everywhere.org$$[UTF-8 manifesto], this release updates the default encoding
+to UTF-8 in all areas of the framework and ensures this default is configurable as needed.
+
+==== Native support
+
+The effort towards providing support to compile Spring Batch applications as native executables
+using the GraalVM native-image compiler has started in v4.2 and was shipped as experimental in v4.3.
+
+In this release, the native support has been improved significantly and is now considered out of beta.
+
+==== Improved documentation
+
+In this release, the documentation was updated to use the Spring Asciidoctor Backend.
+This backend ensures that all projects from the portfolio follow the same documentation style.
+For consistency with other projects, the reference documentation of Spring Batch was updated
+to use this backend in this release.
+
+=== Pruning
+
+Spring Batch 5 removes a number of items that are no longer needed, including:
+
+* <<api-deprecation-and-removal>>
+* <<sqlfire-support-removal>>
+* <<jsr-352-implementation-removal>>
+
+[[api-deprecation-and-removal]]
+==== API deprecation and removal
+
+In this major release, all APIs that were deprecated in previous versions have been removed.
+Moreover, some APIs have been deprecated in v5.0 and are scheduled for removal in v5.2.
+Finally, some APIs have been moved or removed without deprecation for practical reasons.
+
+Please refer to the link:$$https://github.com/spring-projects/spring-batch/wiki/Spring-Batch-5.0-Migration-Guide$$[migration guide]
+for more details about these changes.
+
+[[sqlfire-support-removal]]
+==== SQLFire Support Removal
+
+SqlFire has been announced to be EOL as of November 1st, 2014. The support of SQLFire as a job repository
+was deprecated in version v4.3 and removed in version v5.0.
+
+[[jsr-352-implementation-removal]]
+==== JSR-352 Implementation Removal
+
+Due to a lack of adoption, the implementation of JSR-352 has been discontinued in this release.
